@@ -1,0 +1,15 @@
+{
+  "total_rows": 5662,
+  "per_source": {
+    "deepset_prompt_injections": {
+      "rows": 662,
+      "benign": 399,
+      "injection": 263
+    },
+    "qualifire_benchmark": {
+      "rows": 5000,
+      "benign": 3001,
+      "injection": 1999
+    }
+  }
+}

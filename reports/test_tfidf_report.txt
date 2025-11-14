@@ -1,0 +1,12 @@
+              precision    recall  f1-score   support
+
+      benign     0.7941    0.9643    0.8710        56
+   injection     0.9583    0.7667    0.8519        60
+
+    accuracy                         0.8621       116
+   macro avg     0.8762    0.8655    0.8614       116
+weighted avg     0.8791    0.8621    0.8611       116
+
+Confusion Matrix [[TN, FP],[FN, TP]]:
+[[54  2]
+ [14 46]]

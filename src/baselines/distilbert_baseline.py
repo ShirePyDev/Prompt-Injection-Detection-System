@@ -21,7 +21,7 @@ from sklearn.metrics import (
 # ---- Safety for macOS MPS (Apple Silicon) ----
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
-DATA_DIR = Path("data/processed")
+DATA_DIR = Path("data/final_dataset")
 OUT_DIR = Path("outputs/distilbert_baseline")
 MODEL_DIR = Path("models/distilbert")
 OUT_DIR.mkdir(parents=True, exist_ok=True)

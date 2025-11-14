@@ -13,6 +13,9 @@ __pycache__/
 data/raw/
 data/processed/
 
+# Environment secrets
+.env
+
 # Model weights and checkpoints
 models/
 outputs/

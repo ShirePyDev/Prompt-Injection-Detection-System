@@ -11,7 +11,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import GridSearchCV
 import joblib
 
-DATA_DIR = Path("data/processed")
+DATA_DIR = Path("data/final_dataset")
 OUT_DIR = Path("outputs/tfidf_baseline")
 MODEL_DIR = Path("models/tfidf_logreg")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
