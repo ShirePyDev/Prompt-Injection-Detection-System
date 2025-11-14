@@ -13,9 +13,15 @@ def main():
     print("✅ Dataset downloaded and saved to:", OUT_DIR)
     print("Splits:", list(ds.keys()))
     for split in ds.keys():
-        print(f"{split}: {len(ds[split])} rows")
-        print("Columns:", ds[split].column_names)
-        print("Example:", ds[split][110])
+        split_ds = ds[split]
+        split_len = len(split_ds)
+        print(f"{split}: {split_len} rows")
+        print("Columns:", split_ds.column_names)
+        if split_len:
+            # Keep inspection safe on tiny splits by grabbing the first row
+            print("Example:", split_ds[0])
+        else:
+            print("Example: <empty split>")
 
 if __name__ == "__main__":
     main()

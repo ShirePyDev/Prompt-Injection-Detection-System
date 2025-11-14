@@ -2,7 +2,8 @@
 from pathlib import Path
 import json
 import re
-from typing import Dict, List
+from typing import Dict
+import argparse
 
 import pandas as pd
 from datasets import load_from_disk, DatasetDict
@@ -12,7 +13,6 @@ OUT_DIR = Path("data/processed")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 LABEL_MAP = {0: "benign", 1: "injection"}  # adjust if dataset differs
-REVERSE_MAP = {v: k for k, v in LABEL_MAP.items()}
 
 def basic_clean(text: str) -> str:
     """Light, safe normalization—no aggressive changes."""
@@ -39,27 +39,70 @@ def to_df(split) -> pd.DataFrame:
     df["label"] = df["label"].astype(int)
     return df
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Prepare train/val/test CSVs for prompt-injection datasets.")
+    parser.add_argument("--train-split", default="train", help="Dataset split name to use for training.")
+    parser.add_argument(
+        "--val-split",
+        default=None,
+        help="Dataset split name to use for validation (defaults to 'validation'/'val' if present, otherwise carved from train)."
+    )
+    parser.add_argument("--test-split", default="test", help="Dataset split name to use for testing.")
+    parser.add_argument(
+        "--val-frac",
+        type=float,
+        default=0.1,
+        help="Fraction of the train split to reserve for validation when an explicit val split is unavailable."
+    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for deterministic sampling.")
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+
     if not RAW_DIR.exists():
         raise FileNotFoundError(f"Raw dataset not found at {RAW_DIR}. Run download step first.")
 
     ds: DatasetDict = load_from_disk(str(RAW_DIR)) # type: ignore
-    # Handle various split names robustly
     split_names = list(ds.keys())
-    # Try to map common variants to train/val/test
-    train_key = "train" if "train" in split_names else split_names[0]
-    test_key  = "test"  if "test"  in split_names else split_names[-1]
-    val_key   = "validation" if "validation" in split_names else ("val" if "val" in split_names else None)
+
+    def ensure_split(name: str) -> str:
+        if name not in ds:
+            raise ValueError(f"Split '{name}' not found. Available splits: {split_names}")
+        return name
+
+    train_key = ensure_split(args.train_split)
+    test_key = ensure_split(args.test_split)
+    if train_key == test_key:
+        raise ValueError(f"Train split '{train_key}' and test split '{test_key}' must be different.")
 
     train_df = to_df(ds[train_key])
-    test_df  = to_df(ds[test_key])
+    test_df = to_df(ds[test_key])
+
+    val_key = args.val_split
+    if val_key is None:
+        for candidate in ("validation", "val"):
+            if candidate in ds:
+                val_key = candidate
+                break
+
     if val_key:
+        val_key = ensure_split(val_key)
+        if val_key in (train_key, test_key):
+            raise ValueError("Validation split must differ from train/test splits.")
         val_df = to_df(ds[val_key])
     else:
-        # If no validation split, carve 10% from train for validation (stratified)
-        val_df = train_df.groupby("label", group_keys=False).apply(lambda x: x.sample(frac=0.1, random_state=42))
-        train_df = train_df.drop(val_df.index).reset_index(drop=True)
-        val_df = val_df.reset_index(drop=True)
+        if not 0 < args.val_frac < 0.5:
+            raise ValueError("--val-frac must be between 0 and 0.5 when creating a validation split.")
+        # Stratified sample from train
+        sampled = (
+            train_df.groupby("label", group_keys=False)
+            .apply(lambda x: x.sample(frac=args.val_frac, random_state=args.seed))
+        )
+        val_indices = sampled.index
+        val_df = sampled.reset_index(drop=True)
+        train_df = train_df.drop(val_indices).reset_index(drop=True)
 
     # Save CSVs
     train_csv = OUT_DIR / "train.csv"
