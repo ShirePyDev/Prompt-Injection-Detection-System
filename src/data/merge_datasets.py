@@ -41,6 +41,19 @@ def load_large_base() -> pd.DataFrame:
     df["source"] = df.get("source", "large_base")
     return df
 
+def load_manual_benign() -> pd.DataFrame:
+    manual_path = Path("data/manual/hard_benign.csv")
+    if not manual_path.exists():
+        print("No manual benign file found.")
+        return pd.DataFrame(columns=["text", "label", "source"])
+
+    df = pd.read_csv(manual_path)
+    df["text"] = df["text"].astype(str).str.strip()
+    df["label"] = df["label"].astype(int)
+    df["source"] = df.get("source", "manual_hard_benign")
+    return df
+
+
 
 def load_synthetics() -> pd.DataFrame:
     """
@@ -86,6 +99,8 @@ def main():
     small_df = load_small_base()
     large_df = load_large_base()
     synth_df = load_synthetics()
+    manual_df = load_manual_benign()
+
 
     print("=== SOURCE STATS (before merge) ===")
     stats_all: Dict[str, Dict[str, int]] = {}
@@ -97,7 +112,11 @@ def main():
         print("synthetic: 0 rows")
 
     # Combine all
-    df_all = pd.concat([small_df, large_df, synth_df], ignore_index=True)
+    df_all = pd.concat(
+    [small_df, large_df, synth_df, manual_df],
+    ignore_index=True
+)
+
 
     # Basic cleaning
     df_all["text"] = df_all["text"].astype(str).str.strip()
