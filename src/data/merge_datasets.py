@@ -42,7 +42,7 @@ def load_large_base() -> pd.DataFrame:
     return df
 
 def load_manual_benign() -> pd.DataFrame:
-    manual_path = Path("data/manual/hard_benign.csv")
+    manual_path = Path("data/manual_benign/manual_benign.csv")
     if not manual_path.exists():
         print("No manual benign file found.")
         return pd.DataFrame(columns=["text", "label", "source"])
@@ -50,8 +50,11 @@ def load_manual_benign() -> pd.DataFrame:
     df = pd.read_csv(manual_path)
     df["text"] = df["text"].astype(str).str.strip()
     df["label"] = df["label"].astype(int)
-    df["source"] = df.get("source", "manual_hard_benign")
+    if "source" not in df.columns:
+        df["source"] = "manual_hard_benign"
     return df
+
+
 
 
 

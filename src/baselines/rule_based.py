@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix
 
-DATA_DIR = Path("data/processed")
+DATA_DIR = Path("data/final_dataset")
 OUT_DIR = Path("outputs/rule_baseline")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
