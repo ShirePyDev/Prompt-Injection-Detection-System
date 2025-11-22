@@ -22,7 +22,7 @@ if str(ROOT) not in sys.path:
 from src.baselines.rule_based import rule_score
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 
-DATA_DIR = Path("data/processed")
+DATA_DIR = Path("data/final_dataset")
 REPORT_DIR = Path("reports")
 PLOT_DIR = Path("outputs/plots")
 MODEL_DIR = Path("models")

@@ -53,7 +53,7 @@ The project follows a reusable chain: download → normalize → expand/augment 
 | 4. Split expanded corpus | `python run_split_expanded.py` | Stratified splits inside `data/processed_expanded/`. |
 | 5. Generate synthetic attacks (LLM) | `python src/data/synthetic_generate.py` | Llama 3 variants saved under `data/processed_expanded/synthetic/`. Requires `HUGGINGFACEHUB_API_TOKEN`. |
 | 6. Local obfuscation augments | `python src/data/local_augment.py` | Cheap perturbations (`synthetic_local_aug.csv`). |
-| 7. Merge everything | `python src/data/merge_datasets.py` | Final training corpus `data/final_dataset/{train,val,test}.csv`. |
+| 7. Merge everything | `python src/data/merge_all_datasets.py` | Final training corpus `data/final_dataset/{train,val,test}.csv`. |
 
 Tips:
 - `src/data/expand_datasets.py` already knows how to ingest `deepset/prompt-injections` and `qualifire/prompt-injections-benchmark`. Add more configs to the `DATASETS` list to scale further.

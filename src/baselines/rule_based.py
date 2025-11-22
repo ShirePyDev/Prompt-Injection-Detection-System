@@ -3,7 +3,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 import pandas as pd
-from sklearn.metrics import classification_report, confusion_matrix
+
+try:
+    from sklearn.metrics import classification_report, confusion_matrix
+except ImportError as exc:  # pragma: no cover - dependency guard
+    raise ImportError(
+        "scikit-learn is required for the rule-based baseline. "
+        "Install project dependencies via `pip install -r requirements.txt`."
+    ) from exc
 
 DATA_DIR = Path("data/final_dataset")
 OUT_DIR = Path("outputs/rule_baseline")
@@ -63,7 +70,7 @@ def run():
     val_csv = DATA_DIR / "val.csv"
     test_csv = DATA_DIR / "test.csv"
     if not val_csv.exists() or not test_csv.exists():
-        raise FileNotFoundError("Expected data/processed/val.csv and test.csv. Run Step 3 first.")
+        raise FileNotFoundError("Expected data/final_dataset/val.csv and test.csv. Run merge_all_datasets.py first.")
 
     val_out = evaluate_split(val_csv, "val")
     test_out = evaluate_split(test_csv, "test")

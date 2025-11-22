@@ -23,7 +23,7 @@ def load_final_dataset() -> pd.DataFrame:
     for name in ["train", "val", "test"]:
         p = FINAL_DIR / f"{name}.csv"
         if not p.exists():
-            raise FileNotFoundError(f"Missing {p}. Run merge_datasets.py first.")
+            raise FileNotFoundError(f"Missing {p}. Run merge_all_datasets.py first.")
         df = pd.read_csv(p)
         dfs.append(df)
     df_all = pd.concat(dfs, ignore_index=True)

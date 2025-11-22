@@ -72,7 +72,8 @@ def resolve_pipeline_device(device_arg: str):
         return int(idx) if idx else 0
     return device_arg
 
-DATA_DIR = Path("data/processed")
+# Use the fully merged splits for evaluation/inference
+DATA_DIR = Path("data/final_dataset")
 OUT_DIR = Path("outputs/ensemble")
 MODEL_DIR = Path("models")
 ENSEMBLE_DIR = MODEL_DIR / "ensemble"
