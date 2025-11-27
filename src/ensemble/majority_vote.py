@@ -105,7 +105,7 @@ def run_ensemble():
     val_cm = confusion_matrix(y_val, final_val, labels=[0,1])
 
     with open(OUT_DIR / "val_report.txt", "w") as f:
-        f.write(val_rep)
+        f.write(val_rep) #type: ignore
         f.write("\nConfusion Matrix [[TN, FP],[FN, TP]]:\n")
         f.write(str(val_cm))
 
