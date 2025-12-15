@@ -37,6 +37,7 @@ The code is organized so each stage can be run independently (e.g., only classic
 | --- | --- |
 | `HUGGINGFACEHUB_API_TOKEN` | Required for downloading gated models and generating synthetic data with Llama 3 via the HF Inference API. |
 | `LLAMA_API_KEY` | Optional alternative provider key if you adapt `synthetic_generate.py`. |
+| `OPENAI_API_KEY` | Needed for `src/external_evel/eval_openai_guardrail.py` when running the OpenAI-based guardrail evaluation. |
 
 > Never commit `.env`. Git ignores it already.
 
