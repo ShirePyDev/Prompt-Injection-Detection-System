@@ -1,0 +1,115 @@
+# Virtual environments
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Environment secrets
+.env
+
+# Editor settings
+.vscode/
+
+# Model weights and checkpoints
+models/*
+outputs/*
+!models/.gitkeep
+!outputs/.gitkeep
+!outputs/multi_seed_runs/
+outputs/multi_seed_runs/*
+!outputs/multi_seed_runs/PROVENANCE.md
+*.safetensors
+*.bin
+*.joblib
+
+# Old dataset versions (replaced by data/pids_bench_v3/)
+data/raw/
+data/processed/
+data/processed_expanded/
+data/final_dataset/
+data/final_dataset_before_fix/
+data/eval_submit/
+data/eval_subset/
+data/evel_subset/
+data/manual_benign/
+data/real_prompts/
+data/_cache_hf_datasets/
+
+# PIDS-Bench v3 build cache and temp files
+data/pids_bench_v3/_cache_paraphrase/
+data/pids_bench_v3/_paraphrases/
+data/pids_bench_v3/eval_subsets/_staging/
+
+# Local experiment datasets not part of the frozen public release
+data/pids_bench_v3/adaptive_pilot/
+data/pids_bench_v3/eval_subsets/hard_benign_audit_sample.csv
+data/pids_bench_v3/hard_negative_train.csv
+data/pids_bench_v3/hard_negative_val.csv
+
+# Backup files
+*.bak
+*.bak2
+
+# PDF artifacts
+*.pdf
+
+# Colab / local zip build output (see scripts/build_colab_drive_zips.py)
+build/
+
+# Large zip archives (built locally, not needed in repo)
+*.zip
+
+# Colab/Drive temp upload artifacts
+.tmp.driveupload/
+
+# Internal workflow and scratch files (not for public repo)
+run_queue.sh
+eval/iaa_generate_example.py
+eval/iaa_generate_example2.py
+scripts/run_adaptive_pilot_q1_scale.sh
+scripts/build_colab_drive_zips.py
+
+# Internal/AI-drafted paper planning documents (kept locally only)
+reports/IEEE_ACCESS_STATUS_AND_ROADMAP.md
+reports/LABEL_QUALITY_STATEMENT.md
+reports/FAMILY_CI_CORE_RESULTS.md
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+logs/
+
+# Docs — kept locally only, not published to GitHub
+docs/
+
+# Huge / machine-specific
+GoogleDrive-*/
+outputs/
+models/
+pids_bench_a100/
+logs/
+build/
+*.log
+
+# Internal caches and intermediates — not part of frozen benchmark
+data/_cache_hf_datasets/
+data/pids_bench_v3/_cache_paraphrase/
+data/pids_bench_v3/_paraphrases/
+
+# Out-of-scope experiment (not in submitted paper)
+data/pids_bench_v3/adaptive_pilot/
+
+# Python junk
+__pycache__/
+*.pyc
+PROVENANCE.md
+.claude/

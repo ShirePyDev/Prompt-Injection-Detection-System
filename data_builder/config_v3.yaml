@@ -1,0 +1,194 @@
+# Historical build-planning config for an earlier larger v3 target.
+# Do not cite split counts from this file in the paper.
+# The current frozen release is defined by data/pids_bench_v3/FREEZE_MANIFEST.txt.
+# See README.md and data/pids_bench_v3/FREEZE_MANIFEST.txt for the public benchmark summary.
+
+dataset_name: PIDS-Bench
+version: v3
+output_dir: data/pids_bench_v3
+
+# Main corpus: train + val + standard_test = ~50,000 rows
+# Split ratios: 40k / 5k / 5k = 80% / 10% / 10%
+# Actual size is determined by the balanced seed pool (~18,878 seeds × 3 paraphrases
+# minus dedup → ~50,000-55,000 rows). Splits are trimmed to these targets.
+target_total_main_corpus: 50000
+splits:
+  train: 40000
+  val: 5000
+  standard_test: 5000
+
+# Additional eval splits (built separately)
+# balanced_subtype_test is rebuilt from the test split AFTER the paraphrase build via
+# build_eval_subsets.py. It must NOT be built from raw seeds to avoid train/eval leakage.
+# Target: 200 per subtype × 6 = 1,200 injection + 1,200 benign = 2,400 total.
+# (Achievable from a 5,000-row test split with 6 equal-sized subtype buckets.)
+eval_splits:
+  balanced_subtype_test: 2400   # 1200 benign + 200 per subtype × 6 — rebuilt post-paraphrase
+  hard_benign_test: 4000        # all benign, curated — already frozen
+  ood_adaptive_stress_test: 5000  # 2000 unseen-source + 3000 adaptive — to be built
+
+# Target subtype distribution for main injection pool (train/val/standard_test).
+# Targets calibrated to match the achievable template pool and real data sizes.
+# tool_injection is capped at 0.09 by available template diversity; compensated in direct_override.
+subtype_distribution:
+  direct_override: 0.31
+  roleplay_attack: 0.16
+  contextual_manipulation: 0.21
+  data_exfiltration: 0.13
+  encoded_attack: 0.10
+  tool_injection: 0.09
+
+# Target global source_type mix for seed pool (real vs template).
+# With SPML classified (12,000 rows) the natural achieved real ratio is ~73%.
+# Setting the target to 0.73 prevents the balancer from swapping real→template
+# unnecessarily, preserving real subtype diversity (especially roleplay_attack,
+# data_exfiltration from SPML). Must stay >= natural achieved ratio to avoid swaps.
+source_type_distribution:
+  real: 0.73
+  template: 0.27
+
+# Balance report output path (relative to project root)
+balance_report_path: data_builder/audit/balance_report.json
+
+# Seed budget: 28,000 slots. Actual balanced seeds = ~18,878 (benign is the limiting side).
+# ~18,878 seeds × 3 paraphrases → ~56,000 rows → ~50,000-55,000 after dedup + trim.
+# Breakdown: ~18,200 real (enforce_quota from 26,200 pool) + ~9,800 templates
+seed_budget: 28000
+
+# Target source composition (real vs template)
+# Train: 55-60% real / human-like, 40-45% template
+# Headline eval (val, standard_test): 70% real, 30% template
+source_composition:
+  train:
+    real: 0.57      # midpoint of 55-60%
+    template: 0.43
+  eval:
+    real: 0.70
+    template: 0.30
+
+# Cross-dataset dedup: remove exact duplicates across real sources before combining.
+# Applied across SPML, deepset, Qualifire, Alpaca, and ChatBot sources.
+cross_dataset_dedup: true
+# Skip near-duplicate dedup on real seeds for performance.
+# Exact dedup is sufficient here because sources are from distinct, non-overlapping domains
+# (prompt injection datasets vs. instruction datasets). Near-dedup is still applied to templates.
+cross_dataset_near_dedup: false
+
+# Real seed pool (per-source quotas; enforce_quota randomly keeps budget × real_prompt_ratio rows):
+#   Injection real quota: SPML 12,000 (classified) + deepset 200 + Qualifire 1,500 = 13,700
+#   Benign real quota:    Alpaca 7,000 + ChatBot 4,000 + OASST1 1,000 + Dolly 500 = 12,500
+#   Total real pool:      26,200  — enforce_quota keeps 28,000 × 0.65 ≈ 18,200 rows (random sample)
+#   Templates fill:       28,000 - 18,200 = 9,800 (injection subtype gaps + benign gap)
+#   Expected injection real ratio after balancing: ~50%
+#   (direct_override + roleplay_attack are majority real; encoded_attack + tool_injection
+#    remain mostly template — real-world data scarcity for those subtypes; documented in paper)
+real_prompt_ratio: 0.65
+
+paraphrase_models:
+  - gpt-4o-mini
+paraphrase_prompt_template: 'Rewrite the following prompt preserving its intent while using diverse wording: {text}'
+paraphrase_stage:
+  cache_dir: data/pids_bench_v3/_cache_paraphrase
+  enabled: true
+  model: gpt-4o-mini
+  resume: true
+  temperature: 0.9
+  delay_seconds: 1.0   # 1.0 = ~60 RPM, safer for Tier 1; use 0.5 if Tier 2+
+paraphrases_per_seed: 3
+
+post_paraphrase_dedup:
+  enabled: true
+
+# Real source quotas — prompt injection only (no jailbreaks).
+#
+# Quotas are per-source caps (loader uses df.head(quota)). enforce_quota then randomly
+# samples real_prompt_ratio × budget rows from the combined real pool.
+#   Injection real quota: SPML 12,000 (classified) + deepset 200 + Qualifire 1,500 = 13,700
+#   Benign real quota:    Alpaca 7,000 + ChatBot 4,000 + OASST1 1,000 + Dolly 500 = 12,500
+#   Total real pool:      26,200  — kept proportion ~0.65 of 28,000 = 18,200
+#   Templates fill remaining ~9,800 slots (injection subtype gaps + benign gap)
+#
+# Cross-dataset dedup (exact + TF-IDF near-duplicate) is applied to the real pool before
+# combining with templates. See BENCHMARK_SPECIFICATION.md §2.
+real_sources:
+  # ── INJECTION (label = 1, direct_override — pure prompt injection, no jailbreaks) ──────────
+  - name: spml_injection
+    path: data/real_prompts/spml_injection_classified.csv
+    text_column: text
+    attack_type_column: attack_type   # subtype labels from rule-based classifier (data_builder/labeling/subtype_classifier.py)
+    default_attack_type: direct_override  # fallback if attack_type cell is empty
+    default_label: 1
+    default_language: en
+    source_type: real
+    quota: 12000  # SPML — Sharma et al., arXiv 2402.11755. 12,541 available; balancer trims excess per subtype.
+
+  - name: deepset_injection
+    path: data/real_prompts/deepset_injection.csv
+    text_column: text
+    default_attack_type: direct_override
+    default_label: 1
+    default_language: en
+    source_type: real
+    quota: 200    # deepset/prompt-injections — most cited PI dataset (203 available, use all)
+
+  - name: qualifire
+    path: data/real_prompts/qualifire.csv
+    text_column: text
+    default_attack_type: direct_override
+    default_label: 1
+    default_language: en
+    source_type: real
+    quota: 1500   # Qualifire real-world API traffic prompt injections (1,500 available, use all)
+
+  # ── BENIGN (label = 0) ────────────────────────────────────────────────────────────────────
+  - name: alpaca_benign
+    path: data/real_prompts/alpaca_benign.csv
+    text_column: text
+    default_attack_type: none
+    default_label: 0
+    default_language: en
+    source_type: real
+    quota: 7000   # Stanford Alpaca standalone instructions — Taori et al. 2023
+
+  - name: chatbot_instructions_benign
+    path: data/real_prompts/chatbot_instructions_benign.csv
+    text_column: text
+    default_attack_type: none
+    default_label: 0
+    default_language: en
+    source_type: real
+    quota: 4000   # alespalla/chatbot_instruction_prompts
+
+  - name: sharegpt
+    path: data/real_prompts/sharegpt.csv
+    text_column: text
+    default_attack_type: none
+    default_label: 0
+    default_language: en
+    source_type: real
+    quota: 1000   # OpenAssistant/oasst1 human prompter messages
+
+  - name: stackexchange
+    path: data/real_prompts/stackexchange.csv
+    text_column: text
+    default_attack_type: none
+    default_label: 0
+    default_language: en
+    source_type: real
+    quota: 500    # databricks/databricks-dolly-15k human instructions
+
+seed: 42
+
+# Enforce strict 50/50 label balance (injection vs benign) in seed pool and final splits.
+# Without this, the balancer inherits whatever ratio the candidate pool has.
+label_balance: 0.50
+obfuscation:
+  overall_target: 0.20
+  transform_mix:
+    unicode_confusables: 0.2
+    homoglyph: 0.15
+    zero_width: 0.15
+    spacing_jitter: 0.15
+    markdown_split: 0.15
+    base64_wrap: 0.1
+    rot13_wrap: 0.1

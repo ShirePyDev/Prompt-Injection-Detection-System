@@ -1,0 +1,5 @@
+split,eval_rows,unique_flagged_at_090,pct_090,unique_flagged_at_080,pct_080,new_unique_rows_080_to_090
+heldout_test,3918,0,0.0,14,0.3573,14
+hard_benign,1472,6,0.4076,12,0.8152,6
+domain_ood,2000,0,0.0,0,0.0,0
+structural_ood,1998,3,0.1502,13,0.6507,10

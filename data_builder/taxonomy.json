@@ -1,0 +1,10 @@
+{
+  "attack_type": {
+    "direct_override": "Explicit instruction override (ignore previous instructions, reveal system prompt).",
+    "roleplay_attack": "Persona-based manipulation (DAN, developer mode, roleplay jailbreaks).",
+    "contextual_manipulation": "Indirect steering, subtle constraint bending, instruction smuggling.",
+    "data_exfiltration": "Requests to leak secrets, hidden prompts, credentials, internal data.",
+    "encoded_attack": "Encoded/obfuscated payloads (base64/rot/unicode tricks).",
+    "tool_injection": "Attempts to force tool use or tool misuse (run commands, call APIs, delete files)."
+  }
+}

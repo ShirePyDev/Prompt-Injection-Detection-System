@@ -1,0 +1,12 @@
+Annotation Rule
+
+For each injection sample:
+1. Assign exactly one primary subtype based on the dominant attack intent.
+2. If multiple patterns appear, choose the dominant manipulation strategy and ignore secondary cues.
+3. Do not apply multiple labels or create an “other” class; every sample must map to one of the five predefined subtypes.
+4. If a prompt is ambiguous, still commit to the closest dominant strategy—choose the label that best captures the overall intent.
+
+Annotation Discipline Rules
+- Read the entire prompt carefully before deciding. Do not rush.
+- Do not rely on surface keywords or fixed heuristics. Focus on semantic intent and how the prompt tries to steer the model.
+- Stay consistent: apply the same reasoning every time so that the manual subset remains defensible.

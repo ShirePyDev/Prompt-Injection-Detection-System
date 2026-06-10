@@ -1,0 +1,5 @@
+split,eval_rows,exact_match_count,exact_match_pct
+heldout_test,3918,0,0.0
+hard_benign,1472,1,0.0679
+domain_ood,2000,0,0.0
+structural_ood,1998,0,0.0
