@@ -1,115 +1,138 @@
 # PIDS-Bench: A Multi-Axis Evaluation Framework for Prompt Injection Detectors
 
-**Paper:** *PIDS-Bench: A Multi-Axis Evaluation Framework for Characterizing Failure Modes of Prompt Injection Detectors Under Over-Defense, Obfuscation, and Distribution Shift*
+> **Paper:** *PIDS-Bench: A Multi-Axis Evaluation Framework for Characterizing Failure Modes of Prompt Injection Detectors Under Over-Defense, Obfuscation, and Distribution Shift*
+> *(under review, IEEE Access)*
+
+This repository contains the frozen benchmark, the evaluation code, and the dataset-construction pipeline behind the paper. Everything here is intended to make the results reproducible from a clean checkout.
 
 ---
 
-## Overview
+## 📖 Overview
 
-Prompt injection detectors are widely deployed as safety guardrails for LLM-based systems, yet their evaluation remains largely one-dimensional. Most published evaluations report a single F1 score on a single in-distribution test set. This practice obscures three distinct failure modes that matter in deployment: a detector that aggressively flags benign inputs, a detector that fails when attacks are encoded or rephrased, and a detector that collapses under domain or surface-form shift.
+Prompt-injection detectors are increasingly deployed as gateway classifiers in front of LLM systems, yet most published evaluations summarize a detector with a single F1 score on a single in-distribution test set. That practice hides the errors that matter once a detector is deployed — in particular, how often it flags *benign* inputs as attacks.
 
-This repository introduces **PIDS-Bench** (Prompt Injection Detection System Benchmark), a multi-axis evaluation framework that exposes these failure modes through five orthogonal evaluation axes. We build the benchmark, train and evaluate four in-repository baselines spanning the range from lightweight heuristics to large fine-tuned transformers, and extend the comparison to four external detectors. The central finding is that no model holds its performance profile across all five axes — high IID F1 is not predictive of benign-side safety or structural robustness.
+PIDS-Bench evaluates a detector along multiple axes at once: in-distribution accuracy, benign false-positive behaviour on inputs that superficially resemble attacks, robustness to obfuscated attacks, and behaviour under domain and structural distribution shift. We evaluate seven detectors spanning classical, fine-tuned, external, and broad-safety designs, with a rule-based heuristic reported separately as a lower-bound reference.
+
+The central finding is that a detector's in-distribution F1 does not predict its benign-side safety. The strongest internal detector reaches an in-distribution F1 of 0.9882 while still flagging roughly **38%** of an adversarially constructed benign set, and we show this over-defense is not removed by threshold calibration. Decomposing the benign errors by the *provenance* of the benign inputs reveals an asymmetry we call **provenance-sensitive over-defense**: curated hard-negative augmentation nearly eliminates over-defense on curated benign inputs but leaves it largely intact on externally-sourced ones.
 
 ---
 
-## Motivation
+## 🎯  What the benchmark measures
 
-Consider a detector with IID F1 of 0.989. Is it deployable? PIDS-Bench shows that same model flags **34.9%** of adversarially curated benign inputs as injections, and raises its benign false positive rate to **82.5%** under structural distribution shift. A single F1 score would not reveal either failure.
+A detector with an in-distribution F1 of 0.9882 sounds deployable. PIDS-Bench shows that the same model flags **38.25%** of an adversarially constructed benign set as attacks at a fixed threshold, and that this benign false-positive rate rises further on a curated subset (**48.13%**). A single F1 score reveals neither.
 
-We identify three failure modes that single-metric evaluation systematically hides:
+The benchmark targets three failure modes that single-metric evaluation systematically hides:
 
-| Failure Mode | Definition | Evaluation Axis |
+| Failure mode | What it captures | Evaluation set |
 |---|---|---|
-| **Over-defense** | Detector flags benign prompts that pattern-match attacks | FPR on `hard_benign_test` — 1,472 curated adversarial benign inputs |
-| **Obfuscation blindness** | Detection degrades when attacks are encoded or surface-perturbed | Recall on `obfuscated_attacks` — 405 injection examples with six transform types |
-| **Distribution shift** | Performance collapses outside the training domain or surface form | F1 and FPR on `domain_ood` (4 specialist domains) and `structural_ood` (3 structural transforms) |
+| **Over-defense** | The detector flags benign prompts that pattern-match attacks | `hard_benign_test` — 1,472 benign inputs that mimic injection structure |
+| **Obfuscation blindness** | Detection degrades when attacks are encoded or surface-perturbed | `obfuscated_attacks` — 405 injections across six transform types |
+| **Distribution shift** | Performance changes outside the training domain or surface form | `domain_ood` (specialist domains) and `structural_ood` (structural transforms) |
+
+A fourth axis, `balanced_subtype_test`, is a per-subtype diagnostic disaggregation of the in-distribution split rather than a separate stress condition; it is used to check per-attack-type fairness, not to define a failure mode.
 
 ---
 
-## Benchmark — PIDS-Bench v3
+## 📊 Benchmark Specification — PIDS-Bench v3
 
-The benchmark is frozen under SHA-256 checksums (see `data/pids_bench_v3/FREEZE_MANIFEST.txt`, frozen 2026-03-24). All evaluation sets are static and must not be modified. Authoritative row counts and hashes are in the manifest; the table below is for reference only.
+The benchmark is frozen under SHA-256 checksums recorded in:
+
+```text
+data/pids_bench_v3/FREEZE_MANIFEST.txt
+```
+
+(frozen 2026-03-24).
+
+The manifest is the authoritative source of truth for row counts and hashes. Evaluation sets are static and must not be modified.
 
 ### Dataset Splits
 
-| Split | Rows | Benign | Injection | Purpose |
-|---|---|---|---|---|
-| `train` | 27,093 | 12,846 (47.4%) | 14,247 (52.6%) | Model training |
-| `val` | 3,989 | 1,943 (48.7%) | 2,046 (51.3%) | Threshold tuning and early stopping |
-| `test` | 3,918 | 1,848 (47.2%) | 2,070 (52.8%) | Standard in-distribution evaluation |
-| `hard_benign_test` | 1,472 | 1,472 (100%) | 0 | Over-defense stress test |
-| `balanced_subtype_test` | 2,297 | 1,200 | 1,097 | Attack-subtype fairness |
-| `obfuscated_attacks` | 405 | 0 | 405 (100%) | Obfuscation robustness (no train overlap — see manifest) |
-| `domain_ood` | 2,000 | 1,000 | 1,000 | Domain distribution shift (Medical, Legal, Finance, Code) |
-| `structural_ood` | 1,998 | 999 | 999 | Structural distribution shift (3 surface transforms) |
-| **Total (all manifest sets)** | **43,172** | | | |
-
-`balanced_subtype_test` and `obfuscated_attacks` are derived diagnostic slices drawn exclusively from `test.csv`. The OOD stress sets are independently constructed and held completely separate from the main corpus.
-
-### Dataset Construction
-
-The dataset is built through a multi-stage pipeline implemented in `data_builder/`:
-
-- **Seed collection** draws from seven public sources covering both real and template-generated benign and injection examples.
-- **Deduplication** applies exact-match normalization followed by TF-IDF character n-gram near-duplicate filtering (cosine threshold 0.95) across the full seed pool before splitting.
-- **Paraphrase expansion** generates three surface variants per seed using an LLM, after splitting, ensuring all paraphrases of a seed land in the same split and cannot leak across train and test.
-- **Obfuscation augmentation** applies six transform types to injection seeds — Base64 encoding, ROT13, whitespace perturbation, homoglyph substitution, prompt dilution, and instruction-prefix mimicry.
-- **Hard-negative augmentation** (optional, see `data_builder/build_hard_negative.py`) adds curated benign examples that pattern-match injection surface features, cross-deduplicated against all training and evaluation files.
+| Split                   |       Rows | Benign | Injection | Purpose                       |
+| ----------------------- | ---------: | -----: | --------: | ----------------------------- |
+| `train`                 |     27,093 | 12,846 |    14,247 | Model training                |
+| `val`                   |      3,989 |  1,943 |     2,046 | Threshold tuning              |
+| `test`                  |      3,918 |  1,848 |     2,070 | In-distribution evaluation    |
+| `hard_benign_test`      |      1,472 |  1,472 |         0 | Over-defense stress test      |
+| `balanced_subtype_test` |      2,297 |  1,200 |     1,097 | Per-subtype diagnostics       |
+| `obfuscated_attacks`    |        405 |      0 |       405 | Obfuscation robustness        |
+| `domain_ood`            |      2,000 |  1,000 |     1,000 | Domain distribution shift     |
+| `structural_ood`        |      1,998 |    999 |       999 | Structural distribution shift |
+| **Total**               | **43,172** |        |           |                               |
 
 ---
 
-## Results
+## 🏗 Dataset construction
 
-### Table 1 — Main Comparison (all models)
+The dataset is built by the pipeline in `data_builder/`:
 
-| Model | Kind | Test F1 | Hard-Benign FPR | Obfuscated Recall | Domain-OOD F1 | Structural-OOD FPR | ROC-AUC |
-|---|---|---:|---:|---:|---:|---:|---:|
-| Rule-based | heuristic floor | 0.067 | 0.229 | 0.025 | 0.133 | 0.322 | — |
-| TF-IDF + LR | classical baseline | 0.967 | 0.390 | 0.965 | 0.951 | 0.792 | 0.994 |
-| DistilBERT | efficient neural | 0.982 | 0.448 | 0.985 | 0.906 | 0.732 | 0.998 |
-| DeBERTa-v3 | strong in-repo reference | 0.989 | 0.349 | 0.993 | 0.983 | 0.825 | 0.999 |
-| ProtectAI small | external PI detector | 0.884 | 0.164 | 0.844 | 0.891 | 0.443 | — |
-| DeBERTa-PI | external PI detector | 0.902 | 0.216 | 0.896 | 0.910 | 0.453 | — |
-| PromptGuard 2 (86M) | broad malicious-prompt comparator | 0.539 | 0.152 | 0.324 | 0.190 | 0.332 | — |
-| GPT-4o-mini (0-shot) | zero-shot LLM baseline | 0.744 | 0.174 | 0.689 | 0.942 | 0.304 | 0.942 |
+- **Seed collection** draws benign and injection examples from several public sources.
+- **Deduplication** applies exact-match normalization followed by TF-IDF character n-gram near-duplicate filtering (cosine threshold 0.95) across the full seed pool **before** the split is applied.
+- **Seed-family splitting** assigns every paraphrase and obfuscated descendant of a seed to the same partition before train/validation/test are separated, so structurally similar examples cannot straddle training and evaluation.
+- **Paraphrase expansion** generates surface variants for the two scarce attack subtypes (`encoded_attack`, `tool_injection`) using GPT-4o-mini as a paraphrase generator at construction time. This is data-construction tooling only; GPT-4o-mini is **not** an evaluated detector.
+- **Obfuscation augmentation** applies six transform types to injection seeds: Base64 encoding, ROT13, whitespace perturbation, homoglyph substitution, prompt dilution, and instruction-prefix mimicry.
+- **Hard-negative augmentation** (optional, `data_builder/build_hard_negative.py`) adds curated benign examples that pattern-match injection surface features, cross-deduplicated against all training and evaluation files.
 
-*Hard-benign FPR: lower is better. Obfuscated Recall: higher is better. External detectors use binary outputs without per-input probability scores and are excluded from ROC-AUC comparison.*
+---
 
-### Table 2 — In-Distribution Performance with 95% Confidence Intervals
+## 📈 Results
 
-| Model | Test F1 | 95% CI | Hard-Benign FPR | 95% CI | Domain-OOD F1 | 95% CI | Structural-OOD FPR | 95% CI |
+All learned models follow the same protocol: train on `train.csv`, tune a single classification threshold on `val.csv` (F1-maximizing grid search), and apply that threshold once to the test split and every stress set. Threshold selection never sees test data. The two fine-tuned models are reported as **five-seed mean ± standard deviation** over seeds {13, 42, 123, 2024, 7777}. TF-IDF + LR converges to identical solutions across seeds and is reported without variance.
+
+### Internal baselines
+
+Five-seed mean ± standard deviation at fixed threshold τ = 0.5. Hard-benign FPR is the aggregate over the full set (n = 1,472). ↑ higher is better; ↓ lower is better.
+
+| Model | IID F1 ↑ | Real-source F1 ↑ | IID Ben-FPR ↓ | Hard-ben. FPR ↓ | Obf. Recall ↑ | Domain-shift F1 ↑ | Struct.-shift FPR ↓ | ROC-AUC ↑ |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Rule-based | 0.067 | [0.047, 0.088] | 0.229 | [0.208, 0.250] | 0.133 | [0.105, 0.159] | 0.322 | [0.280, 0.368] |
-| TF-IDF + LR | 0.967 | [0.960, 0.975] | 0.390 | [0.366, 0.415] | 0.951 | [0.941, 0.961] | 0.792 | [0.752, 0.830] |
-| DistilBERT | 0.982 | [0.976, 0.987] | 0.448 | [0.424, 0.474] | 0.906 | [0.891, 0.919] | 0.732 | [0.707, 0.756] |
-| DeBERTa-v3 | 0.989 | [0.984, 0.993] | 0.349 | [0.325, 0.373] | 0.983 | [0.978, 0.989] | 0.825 | [0.789, 0.854] |
+| TF-IDF + LR | 0.9656 | 0.9467 | 0.0514 | 0.4090 | 0.9654 | 0.9508 | 0.7918 | 0.9941 |
+| DistilBERT | 0.9831 ± 0.0017 | 0.9738 ± 0.0026 | 0.0249 ± 0.0013 | 0.4702 ± 0.0677 | 0.9877 ± 0.0058 | 0.8886 ± 0.0214 | 0.7826 ± 0.0963 | 0.9974 ± 0.0002 |
+| DeBERTa-v3-FT | 0.9882 ± 0.0008 | 0.9825 ± 0.0009 | 0.0124 ± 0.0013 | 0.3825 ± 0.0474 | 0.9867 ± 0.0079 | 0.9604 ± 0.0099 | 0.8108 ± 0.0617 | 0.9983 ± 0.0004 |
 
-### Table 3 — Family-Level Sensitivity Analysis
+### Hard-benign over-defense by source origin
 
-To confirm that the paraphrase expansion design does not inflate reported metrics, we re-evaluate treating all paraphrases of the same seed as a single family unit.
+False-positive rate on the hard-benign set at τ = 0.5, decomposed by the provenance of the benign input. This decomposition is the basis for the provenance-sensitive over-defense finding.
 
-| Model | Test F1 (row) | Test F1 (family) | Δ | Structural FPR (row) | Structural FPR (family) | Δ |
-|---|---:|---:|---:|---:|---:|---:|
-| Rule-based | 0.067 | 0.061 | −0.006 | 0.322 | 0.231 | −0.091 |
-| TF-IDF + LR | 0.967 | 0.978 | +0.011 | 0.792 | 0.826 | +0.034 |
-| DistilBERT | 0.982 | 0.987 | +0.005 | 0.732 | 0.838 | +0.106 |
-| DeBERTa-v3 | 0.989 | 0.990 | +0.001 | 0.825 | 0.850 | +0.025 |
+| Model | Aggregate ↓ | Externally-sourced (n = 872) ↓ | Curated (n = 600) ↓ |
+|---|---:|---:|---:|
+| TF-IDF + LR | 0.4090 | 0.4622 | 0.3317 |
+| DistilBERT | 0.4702 ± 0.0677 | 0.4606 ± 0.0639 | 0.4843 ± 0.0793 |
+| DeBERTa-v3-FT | 0.3825 ± 0.0474 | 0.3144 ± 0.0525 | 0.4813 ± 0.0855 |
 
-Family-level deltas are small in the IID direction and, notably, slightly larger for structural-OOD FPR — confirming that the over-defense finding is not a paraphrase artifact.
+> **Note on direction.** DeBERTa-v3-FT shows the strongest provenance dependence (0.3144 externally-sourced vs. 0.4813 curated). DistilBERT over-blocks both subsets at comparable rates, and TF-IDF over-blocks the externally-sourced subset *more* than the curated one — so the curated-vs-externally-sourced asymmetry is specific to the fine-tuned detectors, not universal across all models.
 
-### Key Findings
+### External and broad-safety detectors
 
-**Over-defense is universal.** Every model in the study raises its false positive rate substantially on the hard-benign stress set relative to the standard test set. DeBERTa-v3 produces the best IID F1 (0.989) but still flags 34.9% of adversarially curated benign prompts. The structural-OOD benign FPR for all fine-tuned models exceeds 73%, indicating that models associate structural surface features with injections as a training artifact.
+<!--
+  TODO (fill from the submitted paper's Table 5 — external/broad-safety detectors):
+  ProtectAI DeBERTa-v3, DeBERTa-PI (deepset), PromptGuard 2 (86M), Llama Guard 3-1B.
+  Paste those rows and they go here, at their reported thresholds (native and swept).
+  Left blank deliberately rather than reproduced from an older draft, to avoid
+  publishing unverified numbers next to the paper.
+-->
 
-**Obfuscation is largely solved by fine-tuned models.** TF-IDF+LR, DistilBERT, and DeBERTa-v3 all achieve above 96.5% recall on the 405-injection obfuscated set. The rule-based system collapses to 2.5%, confirming that pattern matching alone cannot handle modern injection diversity.
+*Results for the external prompt-injection detectors (ProtectAI DeBERTa-v3, DeBERTa-PI) and broad-safety comparators (PromptGuard 2 (86M), Llama Guard 3-1B) are reported in the paper's external-detector table. External detectors are evaluated at their native decision boundaries and, where a continuous score is available, at a swept threshold; broad-safety classifiers do not expose a continuous score and are excluded from ROC-AUC comparison.*
 
-**Distribution shift exposes model-specific weaknesses.** Under domain shift, DeBERTa-v3 retains strong F1 (0.983) while DistilBERT degrades to 0.906 and the Code domain specifically reduces DistilBERT recall to 44.8%. Under structural shift, all models experience severe benign false-positive pressure — DeBERTa-v3's benign FPR on the instruction-prefix-mimic transform reaches 84.7%.
+### Rule-based lower-bound reference
 
-**Four qualitatively distinct failure profiles emerge.** The eight-model study reveals that detector evaluation is not a leaderboard problem. The four profiles are: (1) over-defense, where fine-tuned models achieve high attack recall at the cost of benign precision; (2) attack–defense tradeoff, where stronger detectors are also more over-defensive; (3) under-detection, where conservative models suppress false positives by missing most attacks; and (4) obfuscation-blind generalism, where a zero-shot LLM handles structural shift better than any fine-tuned model but fails on obfuscated injections.
+The rule-based heuristic is reported separately as a lower-bound reference and is outside the seven-detector comparison. It achieves high precision but very low recall (F1 ≈ 0.07), which confirms that pattern matching alone cannot handle modern injection diversity.
 
 ---
 
-## Repository Structure
+## 🔍 Key Findings
+
+**In-distribution F1 does not predict benign-side safety.** DeBERTa-v3-FT posts the highest in-distribution F1 (0.9882) yet still flags 38.25% of the hard-benign set at τ = 0.5, rising to 48.13% on the curated subset. Across a full threshold sweep and five seeds, no internal detector reaches an operating point that simultaneously satisfies F1 ≥ 0.95 and externally-sourced hard-benign FPR ≤ 0.10 on this security-adjacent stress distribution.
+
+**Over-defense is not a threshold artifact.** The benign inputs that are over-blocked are scored deep in the injection region, not marginally above the decision boundary, so raising the threshold does not separate them from true positives without destroying recall.
+
+**Over-defense is provenance-sensitive.** Curated hard-negative augmentation nearly eliminates over-defense on the curated subset (DeBERTa-v3-FT 0.4813 → 0.0010; DistilBERT 0.4843 → 0.0123) but leaves over-defense on the externally-sourced subset largely intact (DeBERTa-v3-FT 0.3144 → 0.3101; DistilBERT 0.4606 → 0.3899), with no measurable in-distribution cost. The augmentation was matched to the curated subset; whether augmentation matched to the externally-sourced distribution would close the gap is untested.
+
+**Obfuscation is largely handled by fine-tuned models.** TF-IDF + LR, DistilBERT, and DeBERTa-v3-FT all exceed 96% recall on the obfuscated set, while the rule-based heuristic collapses. One model-specific vulnerability stands out: TF-IDF + LR drops to zero recall on homoglyph attacks, whereas the transformer models remain robust.
+
+**Distribution shift exposes model-specific weaknesses.** Under domain shift, DeBERTa-v3-FT retains strong F1 (0.9604) while DistilBERT degrades (0.8886), with the code domain specifically reducing DistilBERT recall to 0.435 — a within-class content shift, not generalization to an unseen attack distribution. Under structural shift, all fine-tuned models experience severe benign false-positive pressure, with DeBERTa-v3-FT's structural FPR averaging 0.8108 across transforms and `instruction_prefix_mimic` the worst single transform.
+
+---
+
+## 📂 Repository structure
 
 ```
 data/pids_bench_v3/               Frozen benchmark dataset
@@ -117,22 +140,22 @@ data/pids_bench_v3/               Frozen benchmark dataset
   val.csv                         3,989 rows — threshold tuning only
   test.csv                        3,918 rows — in-distribution evaluation
   eval_subsets/
-    hard_benign_test.csv          1,472 adversarial benign inputs (over-defense)
+    hard_benign_test.csv          1,472 benign inputs (over-defense; has source_type)
     balanced_subtype_test.csv     2,297 rows balanced across attack subtypes
-    obfuscated_attacks.csv        405 obfuscated injections (6 transform types)
+    obfuscated_attacks.csv        405 obfuscated injections (six transform types)
   ood/
-    domain_ood.csv                2,000 rows across Medical, Legal, Finance, Code
-    structural_ood.csv            1,998 rows across 3 structural transforms
+    domain_ood.csv                2,000 rows across specialist domains
+    structural_ood.csv            1,998 rows across structural transforms
   FREEZE_MANIFEST.txt             SHA-256 checksums — authoritative source of truth
 
 src/baselines/
   rule_based.py                   Regex + heuristic detector (no training)
   tfidf_logreg.py                 TF-IDF + Logistic Regression
-  distilbert_baseline.py          DistilBERT-base-uncased fine-tuned on PIDS-Bench v3
-  deberta_v3.py                   DeBERTa-v3-base fine-tuned on PIDS-Bench v3
-  llm_zeroshot_baseline.py        GPT-4o-mini zero-shot baseline (OpenAI API)
+  distilbert_baseline.py          DistilBERT fine-tuned on PIDS-Bench v3
+  deberta_v3.py                   DeBERTa-v3 fine-tuned on PIDS-Bench v3
+  deberta_v3_hardneg.py           DeBERTa-v3 with hard-negative augmentation
 
-src/external_eval/                ProtectAI and LlamaGuard evaluation scripts
+src/external_eval/                ProtectAI and related external detector evaluation
 src/external_eval_security/       PromptGuard 2, LLM-Guard, DeBERTa-PI evaluation
 
 data_builder/
@@ -146,39 +169,19 @@ data_builder/
   generators/                     Seed templates and paraphrase generation
   transforms/                     Obfuscation transform implementations
 
-eval/
-  threshold_analysis.py           Val-set threshold tuning and ROC/PR curve generation
-  plot_roc_pr_curves.py           Multi-model ROC and precision-recall plots
-  generate_probability_scores.py  Probability score generation for TF-IDF and others
-  threshold_fpr_tradeoff.py       Threshold vs. FPR tradeoff analysis
-  adaptive_attack_loop.py         Adaptive attack evaluation loop
-  source_breakdown.py             Performance breakdown by source type
-  surrogate_deberta.py            Surrogate model for adaptive attack transfer
-
-scripts/
-  consolidate_results.py          Aggregate outputs/*/summary.json into summary tables
-  breakdown_analysis.py           Per-domain and per-transform breakdown analysis
-  family_ci_analysis.py           Family-level bootstrap confidence intervals
-  build_final_paper_artifacts.py  Generate all paper-ready tables and figures
-  run_external_multiaxis.py       Run all external detector evaluations
-
-reports/
-  BASELINE_PERFORMANCE.md         Full per-axis results for all in-repo baselines
-  EXTERNAL_BASELINES_CORE_RESULTS.md  External detector results and failure profile analysis
-  FINAL_RESULTS_TABLES.md         Paper-facing consolidated tables (Tables 1–4)
-  BREAKDOWN_ANALYSIS_CORE_RESULTS.md  Per-domain and per-transform breakdowns
-  FAMILY_CI_OOD_RESULTS.md        Family-level sensitivity analysis results
-  PIDS_BENCH_V3_REPORT.md         Full benchmark specification and checksums
+eval/                             Threshold analysis, ROC/PR plots, breakdowns
+scripts/                          Result aggregation, multi-seed runs, external eval
+reports/                          Per-axis result write-ups
 
 outputs/                          Experiment results (git-ignored; generated locally)
-models/                           Trained model checkpoints (git-ignored; generated locally)
+models/                           Trained checkpoints (git-ignored; generated locally)
 ```
 
 ---
 
-## Setup
+## ⚙️ Setup
 
-**Requirements:** Python 3.10 or later. A GPU or Apple Silicon MPS is recommended for the transformer baselines; the rule-based and TF-IDF baselines run efficiently on CPU.
+**Requirements:** Python 3.10 or later. A CUDA GPU or Apple Silicon (MPS) is recommended for the transformer baselines; the rule-based and TF-IDF baselines run on CPU.
 
 ```bash
 git clone https://github.com/ShirePyDev/Prompt-Injection-Detection-System.git
@@ -186,140 +189,78 @@ cd Prompt-Injection-Detection-System
 pip install -r requirements.txt
 ```
 
-For Colab or Kaggle environments, use `requirements_colab.txt` instead, which is stripped of environment-specific dependencies. The training notebooks `colab_deberta_training.ipynb` and `kaggle_deberta_training.ipynb` are self-contained.
+For Colab or Kaggle, use `requirements_colab.txt`. The training notebooks (`colab_deberta_training.ipynb`, `kaggle_deberta_training.ipynb`) are self-contained.
 
-If you plan to rebuild the OOD sets or run the LLM zero-shot baseline, create a `.env` file in the project root:
+If you plan to rebuild the OOD sets or run anything that calls a hosted API or a gated HuggingFace model, create a `.env` file in the project root with your own credentials:
 
 ```
 OPENAI_API_KEY=your_key_here
-HUGGINGFACEHUB_API_TOKEN=your_token_here
+HF_TOKEN=your_token_here
 ```
+
+The `.env` file is git-ignored and must never be committed.
 
 ---
 
-## Running the Baselines
+## 🚀 Running the baselines
 
-All four in-repository baselines follow the same protocol: train on `train.csv`, tune a classification threshold on `val.csv` only (F1-maximising grid search), and apply that threshold once to test and all stress sets. Threshold selection is never informed by test data.
-
-### Rule-Based Detector
+Each learned baseline trains on `train.csv`, tunes its threshold on `val.csv`, and applies it once to all evaluation sets.
 
 ```bash
+# Rule-based reference (no training)
 python -m src.baselines.rule_based
-```
 
-No training required. Outputs a classification report and summary to `outputs/rule_baseline/`.
-
-### TF-IDF + Logistic Regression
-
-```bash
+# TF-IDF + Logistic Regression
 python -m src.baselines.tfidf_logreg
-```
 
-Trains in under a minute on CPU. Val-tuned threshold: τ = 0.518. Outputs to `outputs/tfidf_baseline/`.
-
-### DistilBERT
-
-```bash
+# DistilBERT
 python -m src.baselines.distilbert_baseline
-```
 
-Fine-tunes `distilbert-base-uncased` for 2 epochs (batch size 16, lr 5e-5, seed 42). Estimated runtime: approximately 1.5 hours on Apple Silicon MPS. Val-tuned threshold: τ = 0.45. Model saved to `models/distilbert/`, outputs to `outputs/distilbert_baseline/`.
-
-To include hard-negative augmentation during training:
-
-```bash
-python -m src.baselines.distilbert_baseline --hard-neg
-```
-
-### DeBERTa-v3-base
-
-```bash
+# DeBERTa-v3
 python -m src.baselines.deberta_v3
 ```
 
-Fine-tunes `microsoft/deberta-v3-base` for 3 epochs (batch size 16, lr 2e-5, seed 42). Estimated runtime: approximately 3–5 hours on Apple Silicon MPS or a Colab T4. Val-tuned threshold: τ = 0.502. Outputs to `outputs/deberta_v3/`, including OOD evaluation, obfuscation recall, and threshold analysis automatically.
+To include hard-negative augmentation during fine-tuning:
 
-For Colab, use the provided notebook:
+```bash
+python -m src.baselines.deberta_v3_hardneg
+```
 
-```
-colab_deberta_training.ipynb
-```
+The paper's headline numbers are five-seed aggregates. To reproduce the multi-seed runs, use the scripts under `scripts/` (for example, the DeBERTa and DistilBERT multi-seed runners) with seeds {13, 42, 123, 2024, 7777}, then aggregate.
 
 ---
 
-## Threshold Tuning and ROC Analysis
-
-All probabilistic detectors support threshold analysis. The threshold is always selected on `val.csv` and applied once without further adjustment:
+## 📋 Evaluation
 
 ```bash
-python eval/threshold_analysis.py \
-  --val_csv outputs/distilbert_baseline/val_predictions.csv \
-  --test_csv outputs/distilbert_baseline/test_predictions.csv \
-  --out_dir outputs/distilbert_baseline/threshold_analysis
-```
-
-To generate multi-model ROC and precision-recall curves on the structural-OOD split:
-
-```bash
-python eval/plot_roc_pr_curves.py --splits structural_ood
-```
-
----
-
-## Evaluation
-
-### Reproducing the Main Results Table
-
-After running all four baselines, consolidate the summary files:
-
-```bash
+# Consolidate per-model summaries into the main comparison tables
 python scripts/consolidate_results.py
-```
 
-This reads `outputs/*/summary.json` and regenerates the main comparison tables in `reports/`.
-
-### Per-Domain and Per-Transform Breakdowns
-
-```bash
+# Per-domain and per-transform breakdowns
 python scripts/breakdown_analysis.py
-```
 
-Produces per-domain FPR and recall for `domain_ood`, and per-transform breakdown for `structural_ood`, written to `outputs/breakdown_analysis/`.
-
-### Family-Level Confidence Intervals
-
-```bash
-python scripts/family_ci_analysis.py
-```
-
-Bootstrap resampling at the seed-family level (1,000 iterations, seed 42) to confirm that confidence intervals are not deflated by correlated paraphrase rows.
-
-### External Detectors
-
-```bash
+# External and broad-safety detectors (needs HF token; OpenAI key only if used)
 python scripts/run_external_multiaxis.py
 ```
 
-Requires HuggingFace token for ProtectAI, DeBERTa-PI, and PromptGuard 2, and an OpenAI API key for the GPT-4o-mini baseline. Results are written to `outputs/external_eval/multiaxis/`.
+Threshold tuning and ROC/PR analysis live in `eval/` (for example, `eval/threshold_analysis.py` and the plotting scripts).
 
 ---
 
-## Reproducibility
+## 🔄 Reproducibility
 
-All results in the paper are fully reproducible from this repository:
+- The fine-tuned results are five-seed means over seeds {13, 42, 123, 2024, 7777}, reported with standard deviations.
+- All evaluation sets are frozen under SHA-256 checksums in `data/pids_bench_v3/FREEZE_MANIFEST.txt`; the obfuscation rebuild and its zero-overlap checks are documented there.
+- Threshold tuning operates exclusively on `val.csv` and is applied once to every evaluation set without re-tuning.
+- Hyperparameters are specified in each baseline script and the construction config; the pinned software environment is recorded in `requirements.txt`.
+- The deduplication, seed-family split, and paraphrase-generation procedures are implemented in `data_builder/utils/` and `data_builder/build_dataset.py`.
 
-- Training uses fixed random seed (`seed=42`) throughout all baselines.
-- All evaluation sets are frozen under SHA-256 checksums in `data/pids_bench_v3/FREEZE_MANIFEST.txt`.
-- Threshold tuning operates exclusively on `val.csv` and is applied once to all evaluation sets without re-tuning.
-- All hyperparameters (learning rate, batch size, epochs, threshold grid) are hardcoded in each baseline script with no external configuration required.
-- LLM prompts used to construct the OOD sets are documented in `data_builder/build_domain_ood.py` and `data_builder/build_structural_ood.py`.
-- The complete deduplication pipeline, split logic, and paraphrase generation procedure are implemented in `data_builder/utils/` and `data_builder/build_dataset.py`.
-
+A note on scope: the `domain_ood` injection side is drawn from held-out injection data that shares provenance with the training injection class, so its attack-side numbers measure content-level transfer within the injection class rather than generalization to an unseen attack distribution. The hard-benign audit was performed by a single annotator. Both points are stated in the paper's limitations.
 ---
 
-## Citation
+## 📝 Citation
 
-If you use PIDS-Bench or any component of this repository in your work, please cite:
+If you use PIDS-Bench in your work, please cite:
 
 ```bibtex
 @article{pids_bench_2026,
@@ -334,7 +275,6 @@ If you use PIDS-Bench or any component of this repository in your work, please c
 
 ---
 
-## License
+## 📄 License
 
-This repository is released under the MIT License. See `LICENSE` for details.
-The benchmark dataset (`data/pids_bench_v3/`) is released for research use. Source datasets incorporated into the benchmark retain their original licenses; see `data_builder/sources/` for provenance documentation.
+Released under the MIT License (see `LICENSE`). The benchmark dataset in `data/pids_bench_v3/` is released for research use; source datasets incorporated into the benchmark retain their original licenses, with provenance documented under `data_builder/sources/`.
