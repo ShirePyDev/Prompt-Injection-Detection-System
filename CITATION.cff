@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use PIDS-Bench, please cite the published article."
+title: "PIDS-Bench: Evaluating Prompt-Injection Detectors Under Over-Defense, Obfuscation, and Distribution Shift"
+type: article
+authors:
+  - family-names: Shire
+    given-names: Yusuf Khalid
+    affiliation: Kookmin University
+  - family-names: Kim
+    given-names: Sang-Chul
+    affiliation: Kookmin University
+doi: 10.1109/ACCESS.2026.3728186
+url: https://doi.org/10.1109/ACCESS.2026.3728186
+year: 2026
+pages: 134184-134205
+# TODO: Set these for the release.
+# version: TODO
+# date-released: TODO
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Shire
+      given-names: Yusuf Khalid
+      affiliation: Kookmin University
+    - family-names: Kim
+      given-names: Sang-Chul
+      affiliation: Kookmin University
+  title: "PIDS-Bench: Evaluating Prompt-Injection Detectors Under Over-Defense, Obfuscation, and Distribution Shift"
+  journal: IEEE Access
+  volume: 14
+  year: 2026
+  pages: 134184-134205
+  doi: 10.1109/ACCESS.2026.3728186
+  url: https://doi.org/10.1109/ACCESS.2026.3728186
