@@ -2,6 +2,9 @@
 
 > **Paper:** Yusuf Khalid Shire and Sang-Chul Kim. "PIDS-Bench: Evaluating Prompt-Injection Detectors Under Over-Defense, Obfuscation, and Distribution Shift." *IEEE Access*, vol. 14, 2026. [DOI: 10.1109/ACCESS.2026.3728186](https://doi.org/10.1109/ACCESS.2026.3728186) · [arXiv: 2609.15017](https://arxiv.org/abs/2609.15017)
 
+> **Plain-language write-up:** [Prompt-injection detectors, tested on prompts they should let through](https://shirepydev.github.io/posts/pids-bench/)
+
+
 This repository contains the frozen benchmark, evaluation code, and dataset-construction pipeline behind the paper. Rows whose upstream licenses prevent redistribution require the local rebuild described below.
 
 ---
